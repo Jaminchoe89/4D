@@ -1,0 +1,9 @@
+{
+  "name": "singapore-4d-pattern-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local pattern analysis app for Singapore 4D history.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
