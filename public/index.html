@@ -20,10 +20,12 @@
             recency, adjacent-pair trends, and repeat-shape patterns. It is an analysis tool, not a
             guaranteed predictor.
           </p>
+          <p id="history-as-of-copy" class="hero-status">Preloading official Singapore Pools history.</p>
         </div>
         <div class="hero-note">
+          <span id="history-as-of-pill" class="pill">Loading full official history</span>
           <span class="pill">10,000 combinations scored locally</span>
-          <span class="pill">No API needed</span>
+          <span class="pill">Official data preloaded on page load</span>
           <span class="pill warning">Entertainment and analysis only</span>
         </div>
       </section>
@@ -65,16 +67,16 @@
 
           <div class="settings-grid importer-grid">
             <label class="field">
-              <span>Official draws to fetch</span>
-              <input id="official-draw-count" type="number" min="1" max="2500" value="180" />
+              <span>Official history snapshot</span>
+              <input id="official-as-of" type="text" value="Loading official history" readonly />
             </label>
             <label class="field">
               <span>Official source status</span>
               <input id="official-fetch-status" type="text" value="Waiting to fetch" readonly />
             </label>
             <div class="field field-end">
-              <span>Auto import</span>
-              <button id="official-import-button" class="primary-button" type="button">Fetch Singapore Pools history</button>
+              <span>Refresh source</span>
+              <button id="official-import-button" class="primary-button" type="button">Refresh full Singapore Pools history</button>
             </div>
           </div>
 

@@ -14,6 +14,10 @@ const presetConfig = {
   contrarian: { position: 18, overall: 14, recency: 8, pair: 18, shape: 6 }
 };
 
+const OFFICIAL_HISTORY_BATCH_SIZE = 250;
+const OFFICIAL_HISTORY_CACHE_KEY = "sg4d-official-history-v3";
+const OFFICIAL_HISTORY_CACHE_VERSION = "2026-04-15";
+
 const els = {
   historyInput: document.querySelector("#history-input"),
   loadDemo: document.querySelector("#load-demo"),
@@ -23,9 +27,11 @@ const els = {
   importMode: document.querySelector("#import-mode"),
   importedFileName: document.querySelector("#imported-file-name"),
   importedFileStatus: document.querySelector("#imported-file-status"),
-  officialDrawCount: document.querySelector("#official-draw-count"),
+  officialAsOf: document.querySelector("#official-as-of"),
   officialFetchStatus: document.querySelector("#official-fetch-status"),
   officialImportButton: document.querySelector("#official-import-button"),
+  historyAsOfCopy: document.querySelector("#history-as-of-copy"),
+  historyAsOfPill: document.querySelector("#history-as-of-pill"),
   analyzeButton: document.querySelector("#analyze-button"),
   presetSelect: document.querySelector("#preset-select"),
   candidateCount: document.querySelector("#candidate-count"),
@@ -83,6 +89,38 @@ function applyPreset(name) {
     sliders[key].input.value = value;
   });
   updateSliderLabels();
+}
+
+function getSingaporeDateParts() {
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  }).format(new Date());
+}
+
+function getSingaporeDateStamp() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getAsOfCopy() {
+  return `Official Singapore Pools history as of ${getSingaporeDateParts()} (Singapore).`;
+}
+
+function updateAsOfUi(copy) {
+  els.officialAsOf.value = copy;
+  els.historyAsOfCopy.textContent = copy;
+  els.historyAsOfPill.textContent = `As of ${getSingaporeDateParts()}`;
 }
 
 function extractNumbers(rawText) {
@@ -288,12 +326,50 @@ function setImportStatus(fileName, status) {
   els.importedFileStatus.value = status;
 }
 
-function applyImportedEntries(importedEntries) {
-  const mode = els.importMode.value;
+function applyImportedEntries(importedEntries, modeOverride) {
+  const mode = modeOverride || els.importMode.value;
   const currentEntries = extractNumbers(els.historyInput.value);
   const nextEntries = mode === "append" ? currentEntries.concat(importedEntries) : importedEntries;
   els.historyInput.value = nextEntries.join("\n");
   refreshHistoryMeta();
+}
+
+function writeOfficialHistoryCache(payload) {
+  try {
+    localStorage.setItem(
+      OFFICIAL_HISTORY_CACHE_KEY,
+      JSON.stringify({
+        version: OFFICIAL_HISTORY_CACHE_VERSION,
+        dateStamp: getSingaporeDateStamp(),
+        payload
+      })
+    );
+  } catch (error) {
+    // Ignore cache write failures such as private mode quota limits.
+  }
+}
+
+function readOfficialHistoryCache() {
+  try {
+    const raw = localStorage.getItem(OFFICIAL_HISTORY_CACHE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (
+      parsed.version !== OFFICIAL_HISTORY_CACHE_VERSION ||
+      parsed.dateStamp !== getSingaporeDateStamp() ||
+      !parsed.payload ||
+      !Array.isArray(parsed.payload.numbers)
+    ) {
+      return null;
+    }
+
+    return parsed.payload;
+  } catch (error) {
+    return null;
+  }
 }
 
 async function importHistoryFile(file) {
@@ -326,26 +402,62 @@ async function importHistoryFile(file) {
 }
 
 async function importOfficialHistory() {
-  const requestedDraws = Number(els.officialDrawCount.value);
-  const drawCount = Math.min(2500, Math.max(1, Number.isFinite(requestedDraws) ? requestedDraws : 180));
-
   els.officialImportButton.disabled = true;
-  els.officialFetchStatus.value = "Fetching official history";
+  els.officialFetchStatus.value = "Fetching full official history";
 
   try {
-    const response = await fetch(`/api/official-history?draws=${drawCount}`);
-    const payload = await response.json();
+    let startDraw = null;
+    let latestDrawNumber = null;
+    const allDraws = [];
+    const seenDrawNumbers = new Set();
 
-    if (!response.ok) {
-      throw new Error(payload.error || "Official fetch failed");
+    while (startDraw !== 0) {
+      const query = new URLSearchParams({ draws: String(OFFICIAL_HISTORY_BATCH_SIZE) });
+      if (startDraw !== null) {
+        query.set("startDraw", String(startDraw));
+      }
+
+      const response = await fetch(`/api/official-history?${query.toString()}`);
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Official fetch failed");
+      }
+
+      latestDrawNumber = payload.latestDrawNumber;
+      payload.draws.forEach((draw) => {
+        if (!seenDrawNumbers.has(draw.drawNumber)) {
+          seenDrawNumbers.add(draw.drawNumber);
+          allDraws.push(draw);
+        }
+      });
+
+      els.officialFetchStatus.value = `Loading official history: ${allDraws.length} draws synced`;
+      startDraw = payload.nextStartDraw;
+
+      if (!startDraw || startDraw < 1) {
+        break;
+      }
     }
 
-    applyImportedEntries(payload.numbers);
+    allDraws.sort((left, right) => left.drawNumber - right.drawNumber);
+    const allNumbers = allDraws.flatMap((draw) => draw.numbers);
+    const latestDrawDate = allDraws.length > 0 ? allDraws[allDraws.length - 1].drawDate : "latest available draw";
+
+    applyImportedEntries(allNumbers, "replace");
     setImportStatus(
       "Singapore Pools official history",
-      `${payload.numberCount} values from ${payload.drawCount} draws`
+      `${allNumbers.length} values from ${allDraws.length} draws`
     );
-    els.officialFetchStatus.value = `Imported through draw ${payload.latestDrawNumber}`;
+    updateAsOfUi(getAsOfCopy());
+    els.officialFetchStatus.value = `Preloaded through draw ${latestDrawNumber} (${latestDrawDate})`;
+    writeOfficialHistoryCache({
+      latestDrawNumber,
+      latestDrawDate,
+      drawCount: allDraws.length,
+      numberCount: allNumbers.length,
+      numbers: allNumbers
+    });
     analyze();
   } catch (error) {
     els.officialFetchStatus.value = error.message || "Official fetch failed";
@@ -540,6 +652,20 @@ els.historyInput.addEventListener("input", () => {
 
 applyPreset("balanced");
 updateSliderLabels();
+updateAsOfUi(getAsOfCopy());
 setImportStatus("None yet", "Waiting for file");
 refreshHistoryMeta();
 renderEmpty();
+
+const cachedOfficialHistory = readOfficialHistoryCache();
+if (cachedOfficialHistory) {
+  applyImportedEntries(cachedOfficialHistory.numbers, "replace");
+  setImportStatus(
+    "Singapore Pools official history",
+    `${cachedOfficialHistory.numberCount} values from ${cachedOfficialHistory.drawCount} draws`
+  );
+  els.officialFetchStatus.value = `Loaded cached full history through draw ${cachedOfficialHistory.latestDrawNumber}`;
+  analyze();
+} else {
+  importOfficialHistory();
+}

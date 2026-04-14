@@ -110,6 +110,7 @@ h2 {
 }
 
 .hero-copy,
+.hero-status,
 .microcopy,
 .metric p,
 .candidate-meta,
@@ -126,6 +127,13 @@ h2 {
   max-width: 62ch;
   margin: 0.9rem 0 0;
   line-height: 1.6;
+}
+
+.hero-status {
+  margin: 0.9rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-strong);
 }
 
 .hero-note {

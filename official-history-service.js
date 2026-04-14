@@ -159,9 +159,12 @@ async function mapWithConcurrency(values, concurrency, worker) {
   return results;
 }
 
-async function fetchOfficialHistory(limit) {
+async function fetchOfficialHistory(limit, options = {}) {
   const latestDrawNumber = await discoverLatestDrawNumber();
-  const drawNumbers = Array.from({ length: limit }, (_, offset) => latestDrawNumber - offset);
+  const startDraw = Number.isFinite(options.startDraw)
+    ? Math.min(latestDrawNumber, Math.max(1, options.startDraw))
+    : latestDrawNumber;
+  const drawNumbers = Array.from({ length: limit }, (_, offset) => startDraw - offset).filter((value) => value >= 1);
   const drawResults = await mapWithConcurrency(drawNumbers, 6, (drawNumber) => fetchOfficialDraw(drawNumber));
   const draws = drawResults.filter(Boolean);
 
@@ -172,6 +175,8 @@ async function fetchOfficialHistory(limit) {
   return {
     source: "Singapore Pools",
     latestDrawNumber,
+    startDrawUsed: startDraw,
+    nextStartDraw: Math.max(0, startDraw - drawNumbers.length),
     requestedDraws: limit,
     drawCount: draws.length,
     numberCount: draws.reduce((sum, draw) => sum + draw.numbers.length, 0),

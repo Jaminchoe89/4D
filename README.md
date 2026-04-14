@@ -6,7 +6,7 @@ Local browser app for exploring historical Singapore 4D number patterns.
 
 - Parses pasted 4-digit history from a textarea.
 - Imports local `.txt`, `.csv`, `.json`, and `.html` history files by extracting isolated 4-digit values.
-- Can auto-fetch recent official 4D result history from Singapore Pools through the built-in local server.
+- Preloads the full official 4D result history from Singapore Pools on page load, then caches the same-day snapshot in the browser.
 - Scores all `0000` to `9999` combinations locally in the browser.
 - Ranks a diversified shortlist using:
   - digit frequency by position

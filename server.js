@@ -58,10 +58,13 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/official-history") {
     const requestedDraws = Number.parseInt(url.searchParams.get("draws") || "180", 10);
+    const requestedStartDraw = Number.parseInt(url.searchParams.get("startDraw") || "", 10);
     const drawLimit = Math.min(2500, Math.max(1, Number.isFinite(requestedDraws) ? requestedDraws : 180));
 
     try {
-      const history = await fetchOfficialHistory(drawLimit);
+      const history = await fetchOfficialHistory(drawLimit, {
+        startDraw: Number.isFinite(requestedStartDraw) ? requestedStartDraw : undefined
+      });
       sendJson(res, 200, history);
     } catch (error) {
       sendJson(res, 502, { error: error.message || "Unable to fetch official history" });
