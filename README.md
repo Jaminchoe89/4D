@@ -31,6 +31,6 @@ Then open `http://127.0.0.1:3084`.
 
 - Import the GitHub repository into Vercel.
 - Keep the project root at the repository root.
-- Vercel will serve `index.html`, `app.js`, and `styles.css` as the frontend.
+- Vercel will serve the frontend from the `public/` directory.
 - The official Singapore Pools fetch runs through `api/official-history.mjs`.
 - `vercel.json` sets a longer execution window for the API route because importing many draws can take longer than a tiny default request window.
